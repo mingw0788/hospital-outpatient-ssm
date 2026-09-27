@@ -1,0 +1,7 @@
+export const roles = { PATIENT: '患者', DOCTOR: '医生', CASHIER: '收费员', PHARMACIST: '药师', ADMIN: '管理员' }
+export const statusNames = { RESERVED: '待缴挂号费', BOOKED: '已确认', CANCELLED: '已取消', EXPIRED: '已过期', UNPAID: '待支付', PAID: '已支付', CLOSED: '已关闭', REFUNDED: '已退款', NOT_ARRIVED: '未报到', NOT_CHECKED_IN: '未报到', UNCHECKED: '未报到', WAITING: '候诊中', CALLED: '已叫号', IN_PROGRESS: '接诊中', IN_CONSULTATION: '接诊中', CONSULTING: '接诊中', COMPLETED: '已完成', SKIPPED: '已过号', NO_SHOW: '未到诊', DRAFT: '草稿', SUBMITTED: '已提交', VOID: '已作废', VOIDED: '已作废', DISPENSED: '已发药', NOT_DISPENSED: '未发药', OPEN: '已开放', STOPPED: '已停诊', QUEUED: '排队中', PENDING: '待处理', PROCESSING: '处理中', SUCCESS: '成功', SUCCEEDED: '成功', FAILED: '失败', RETRY: '待重试', RETRYING: '重试中', DEAD: '待人工处理', REGISTRATION: '挂号费', PRESCRIPTION: '处方药费', AM: '上午', PM: '下午', DEMO: '演示时段', MANUAL: '人工', TEMPLATE: '模板' }
+export const label = value => statusNames[value] || roles[value] || value || '—'
+export const money = value => `¥${Number(value || 0).toFixed(2)}`
+export const dateTime = value => value ? String(value).replace('T', ' ').slice(0, 19) : '—'
+export const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
+export const statusType = value => ['PAID','BOOKED','COMPLETED','SUCCESS','SUCCEEDED','OPEN','SUBMITTED','DISPENSED'].includes(value) ? 'success' : ['FAILED','STOPPED','DEAD'].includes(value) ? 'danger' : ['RESERVED','UNPAID','WAITING','CALLED','PROCESSING','QUEUED','RETRY'].includes(value) ? 'warning' : 'info'

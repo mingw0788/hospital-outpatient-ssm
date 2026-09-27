@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.hospital.admin.AdminMapper">
+  <select id="departments" resultType="map">SELECT * FROM department <where><if test="publicOnly">enabled=true</if></where> ORDER BY id LIMIT #{size} OFFSET #{offset}</select>
+  <select id="doctors" resultType="map">SELECT d.*,u.display_name name,dep.name department_name FROM doctor d JOIN app_user u ON u.id=d.user_id JOIN department dep ON dep.id=d.department_id
+    <where><if test="publicOnly">d.enabled=true AND dep.enabled=true AND u.enabled=true</if><if test="departmentId != null and departmentId != ''"> AND d.department_id=#{departmentId}</if><if test="keyword != null and keyword != ''"> AND (u.display_name LIKE CONCAT('%',#{keyword},'%') OR d.title LIKE CONCAT('%',#{keyword},'%'))</if></where> ORDER BY d.id LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="schedules" resultType="map">SELECT s.*,u.display_name doctor_name,d.title,d.department_id,dep.name department_name,dep.location FROM schedule s JOIN doctor d ON d.id=s.doctor_id JOIN app_user u ON u.id=d.user_id JOIN department dep ON dep.id=d.department_id
+    <where><if test="publicOnly">s.status='OPEN' AND d.enabled=true AND dep.enabled=true AND u.enabled=true AND s.start_time>#{now} AND s.work_date BETWEEN #{today} AND #{lastDay}</if>
+      <if test="departmentId != null and departmentId != ''"> AND d.department_id=#{departmentId}</if><if test="doctorId != null and doctorId != ''"> AND s.doctor_id=#{doctorId}</if>
+      <if test="from != null and from != ''"> AND s.work_date &gt;= #{from}</if><if test="to != null and to != ''"> AND s.work_date &lt;= #{to}</if>
+      <if test="period != null and period != ''"> AND s.period=#{period}</if><if test="status != null and status != ''"> AND s.status=#{status}</if><if test="available == 'true' or available == '1'"> AND s.remaining>0</if>
+      <if test="title != null and title != ''"> AND d.title=#{title}</if>
+      <if test="keyword != null and keyword != ''"> AND (u.display_name LIKE CONCAT('%',#{keyword},'%') OR d.title LIKE CONCAT('%',#{keyword},'%'))</if>
+    </where> ORDER BY s.start_time,s.id LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="drugs" resultType="map">SELECT *,stock-reserved available FROM drug <where><if test="publicOnly">enabled=true</if><if test="keyword != null and keyword != ''"> AND (name LIKE CONCAT('%',#{keyword},'%') OR code LIKE CONCAT('%',#{keyword},'%'))</if><if test="lowOnly == 'true'"> AND stock-reserved&lt;=threshold</if></where> ORDER BY id LIMIT #{size} OFFSET #{offset}</select>
+  <select id="users" resultType="map">SELECT id,username,display_name,role,enabled,created_at FROM app_user <where><if test="role != null and role != ''">role=#{role}</if><if test="keyword != null and keyword != ''"> AND (username LIKE CONCAT('%',#{keyword},'%') OR display_name LIKE CONCAT('%',#{keyword},'%'))</if></where> ORDER BY id LIMIT #{size} OFFSET #{offset}</select>
+  <select id="logs" resultType="map">SELECT l.*,u.display_name actor_name FROM operation_log l LEFT JOIN app_user u ON u.id=l.actor_id
+    <where><if test="operation != null and operation != ''">l.operation LIKE CONCAT('%',#{operation},'%')</if><if test="actorId != null and actorId != ''"> AND l.actor_id=#{actorId}</if><if test="from != null and from != ''"> AND l.created_at&gt;=#{from}</if><if test="to != null and to != ''"> AND l.created_at&lt;DATE_ADD(#{to},INTERVAL 1 DAY)</if><if test="success != null and success != ''"> AND l.success=#{success}</if></where> ORDER BY l.id DESC LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="movements" resultType="map">SELECT m.*,d.name drug_name,u.display_name actor_name FROM stock_movement m JOIN drug d ON d.id=m.drug_id LEFT JOIN app_user u ON u.id=m.actor_id <where><if test="drugId != null and drugId != ''">m.drug_id=#{drugId}</if></where> ORDER BY m.id DESC LIMIT #{size} OFFSET #{offset}</select>
+</mapper>

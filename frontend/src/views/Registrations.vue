@@ -1,0 +1,18 @@
+<script setup>
+import { onMounted, ref } from 'vue'
+import { useList } from '../composables/useList'
+import { confirmAction, post, perform } from '../api'
+import { money, dateTime, label } from '../utils'
+import StatusTag from '../components/StatusTag.vue'
+import ListPager from '../components/ListPager.vue'
+const { rows, loading, error, query, load, page } = useList('/registrations',{status:''}), busy = ref(null)
+async function action(row,kind) {
+  const names={cancel:'取消未付款挂号并释放号源',refund:'退号并退还挂号费', 'check-in':'报到并进入候诊队列',pay:'模拟支付挂号费'}
+  if(!await confirmAction(`确认${names[kind]}？${kind==='refund'?'只有时段未开始且未报到的挂号可以退号。':''}`))return
+  busy.value=row.id
+  await perform(()=>post(kind==='pay'?`/bills/${row.bill_id}/pay`:`/registrations/${row.id}/${kind}`),load)
+  busy.value=null
+}
+onMounted(load)
+</script>
+<template><div><div class="page-heading"><div><div class="eyebrow">MY APPOINTMENTS</div><h1>我的挂号</h1><p>付款后，请在就诊当天按时到院报到；报到窗口由服务器时间判断。</p></div><el-button type="primary" @click="$router.push('/schedules')">预约新挂号</el-button></div><section class="panel"><div class="filters"><el-select v-model="query.status" clearable placeholder="全部挂号状态" @change="load(true)"><el-option v-for="s in ['RESERVED','BOOKED','CANCELLED','EXPIRED']" :key="s" :value="s" :label="label(s)"/></el-select><el-button @click="load()">刷新</el-button></div><el-alert v-if="error" :title="error" type="error" :closable="false"/><el-table v-loading="loading" :data="rows" empty-text="还没有挂号记录，先预约一个合适的排班吧"><el-table-column label="挂号 / 科室" min-width="155"><template #default="{row}"><strong>#{{ row.id }} · {{ row.department_name }}</strong><div class="muted">{{ row.doctor_name }}</div></template></el-table-column><el-table-column label="就诊时间" min-width="170"><template #default="{row}">{{ row.work_date }} {{ label(row.period) }}<div class="muted">{{ dateTime(row.start_time).slice(11,16) }}–{{ dateTime(row.end_time).slice(11,16) }}</div></template></el-table-column><el-table-column label="挂号费" width="100"><template #default="{row}"><span class="money">{{ money(row.fee || row.amount) }}</span></template></el-table-column><el-table-column label="挂号状态" width="115"><template #default="{row}"><StatusTag :value="row.status"/></template></el-table-column><el-table-column label="就诊进度" width="115"><template #default="{row}"><StatusTag v-if="row.visit_status" :value="row.visit_status"/><span v-else class="muted">尚未报到</span></template></el-table-column><el-table-column label="支付截止" min-width="160"><template #default="{row}">{{ row.status==='RESERVED'?dateTime(row.deadline):'—' }}</template></el-table-column><el-table-column label="操作" min-width="200" fixed="right"><template #default="{row}"><div class="table-actions"><el-button v-if="row.status==='RESERVED'" size="small" type="primary" :loading="busy===row.id" @click="action(row,'pay')">缴费</el-button><el-button v-if="row.status==='RESERVED'" size="small" :disabled="busy===row.id" @click="action(row,'cancel')">取消</el-button><el-button v-if="row.status==='BOOKED' && !row.visit_id" size="small" type="primary" :loading="busy===row.id" @click="action(row,'check-in')">报到</el-button><el-button v-if="row.status==='BOOKED' && !row.visit_id" size="small" :disabled="busy===row.id" @click="action(row,'refund')">退号</el-button><el-button v-if="row.visit_id" size="small" @click="$router.push('/visits')">候诊详情</el-button><span v-if="['CANCELLED','EXPIRED'].includes(row.status)" class="muted">记录已留存</span></div></template></el-table-column></el-table><ListPager :page="query.page" :length="rows.length" @change="page"/></section><div class="hint-box">挂号占号后默认 15 分钟内支付，且不晚于时段开始。时段开始前 30 分钟开放报到，已报到挂号不支持自行退号。医院停诊由工作人员按停诊流程处理。</div></div></template>

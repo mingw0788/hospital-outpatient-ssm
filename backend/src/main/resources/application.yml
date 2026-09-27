@@ -1,0 +1,54 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8080}
+  servlet:
+    session:
+      timeout: 60m
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${COOKIE_SECURE:false}
+spring:
+  profiles:
+    default: local
+  application:
+    name: hospital-outpatient
+  sql:
+    init:
+      mode: never
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/hospital?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${DB_USER:hospital}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 2
+      connection-timeout: 10000
+  jackson:
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+  quartz:
+    auto-startup: ${app.quartz.enabled:false}
+    job-store-type: memory
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: false
+    call-setters-on-nulls: true
+app:
+  seed-demo: ${SEED_DEMO:false}
+  demo-password: ${DEMO_PASSWORD:Demo12345!}
+  queue:
+    enabled: ${QUEUE_ENABLED:false}
+  quartz:
+    enabled: ${QUARTZ_ENABLED:false}
+logging:
+  level:
+    com.example.hospital: INFO

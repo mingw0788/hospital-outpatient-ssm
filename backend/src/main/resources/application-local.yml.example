@@ -1,0 +1,24 @@
+# 复制为同目录的 application-local.yml，填写 Navicat 使用的数据库密码。
+# IDEA 直接运行 HospitalApplication 即使用 local；环境变量优先于下方默认值。
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/hospital?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${DB_USER:root}
+    # 可以替换为本机密码；此字段保持直填以避免 Spring relaxed binding 导致 DB_PASSWORD 自引用。
+    password: 请填写你的MySQL密码
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
+      continue-on-error: false
+      schema-locations:
+        - classpath:db/001-base.sql
+        - classpath:db/002-business.sql
+        - classpath:db/003-advanced.sql
+app:
+  seed-demo: ${SEED_DEMO:true}
+  demo-password: ${DEMO_PASSWORD:Demo12345!}
+  queue:
+    enabled: ${QUEUE_ENABLED:false}
+  quartz:
+    enabled: ${QUARTZ_ENABLED:false}

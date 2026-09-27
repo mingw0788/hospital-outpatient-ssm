@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.hospital.advanced.AdvancedMapper">
+  <select id="lockGuard" resultType="map">SELECT * FROM advanced_guard WHERE id=#{id} FOR UPDATE</select>
+  <select id="patient" resultType="map">SELECT id,role,enabled FROM app_user WHERE id=#{id}</select>
+  <select id="schedule" resultType="map">SELECT * FROM schedule WHERE id=#{id}</select>
+  <select id="requestByKey" resultType="map">SELECT * FROM registration_request WHERE patient_id=#{patientId} AND request_key=#{key}</select>
+  <select id="request" resultType="map">SELECT * FROM registration_request WHERE id=#{id}</select>
+  <select id="lockRequest" resultType="map">SELECT * FROM registration_request WHERE id=#{id} FOR UPDATE</select>
+  <select id="pendingCount" resultType="long">SELECT COUNT(*) FROM registration_request WHERE status IN ('QUEUED','RETRY','PROCESSING')</select>
+  <select id="recentCount" resultType="long">SELECT COUNT(*) FROM registration_request WHERE patient_id=#{patientId} AND created_at &gt;= #{since}</select>
+  <insert id="insertRequest" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO registration_request(patient_id,schedule_id,request_key,expires_at,next_attempt_at,created_at,updated_at)
+    VALUES(#{patient_id},#{schedule_id},#{request_key},#{expires_at},#{now},#{now},#{now})
+  </insert>
+  <select id="requests" resultType="map">
+    SELECT r.*,u.display_name patient_name,s.work_date,s.period FROM registration_request r
+    JOIN app_user u ON u.id=r.patient_id JOIN schedule s ON s.id=r.schedule_id
+    <where><if test="status != null and status != ''">r.status=#{status}</if></where>
+    ORDER BY r.id DESC LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="dueRequests" resultType="long">
+    SELECT id FROM registration_request WHERE status IN ('QUEUED','RETRY') AND next_attempt_at &lt;= #{now}
+    AND expires_at &gt; #{now} AND (last_delivered_at IS NULL OR last_delivered_at &lt;= #{stale})
+    ORDER BY id LIMIT 100
+  </select>
+  <update id="delivered">
+    UPDATE registration_request SET delivery_attempts=delivery_attempts+1,last_delivered_at=#{now},
+      last_stream_id=#{streamId},updated_at=#{now} WHERE id=#{id}
+  </update>
+  <update id="processing">UPDATE registration_request SET status='PROCESSING',attempts=attempts+1,updated_at=#{now} WHERE id=#{id}</update>
+  <update id="succeeded">
+    UPDATE registration_request SET status='SUCCEEDED',result_registration_id=#{registrationId},error_code=NULL,error_message=NULL,updated_at=#{now} WHERE id=#{id}
+  </update>
+  <update id="failed">
+    UPDATE registration_request SET status=#{status},attempts=attempts+#{attempt_increment},error_code=#{error_code},
+      error_message=#{error_message},next_attempt_at=#{next_attempt_at},last_delivered_at=NULL,updated_at=#{now} WHERE id=#{id}
+  </update>
+  <update id="expireRequests">
+    UPDATE registration_request SET status='EXPIRED',error_code='QUEUE_EXPIRED',error_message='排队请求已超时，请重新选择排班',updated_at=#{now}
+    WHERE status IN ('QUEUED','RETRY') AND expires_at &lt;= #{now}
+  </update>
+  <update id="retryRequest">
+    UPDATE registration_request SET status='RETRY',attempts=0,last_delivered_at=NULL,next_attempt_at=#{now},error_code=NULL,error_message=NULL,updated_at=#{now} WHERE id=#{id}
+  </update>
+  <update id="duplicate">UPDATE registration_request SET duplicate_deliveries=duplicate_deliveries+1 WHERE id=#{id}</update>
+  <select id="lockDoctor" resultType="map">
+    SELECT d.*,u.enabled user_enabled,dep.enabled department_enabled FROM doctor d
+    JOIN app_user u ON u.id=d.user_id JOIN department dep ON dep.id=d.department_id WHERE d.id=#{id} FOR UPDATE
+  </select>
+  <select id="templates" resultType="map">
+    SELECT t.*,u.display_name doctor_name FROM schedule_template t JOIN doctor d ON d.id=t.doctor_id JOIN app_user u ON u.id=d.user_id
+    <where><if test="doctor_id != null">t.doctor_id=#{doctor_id}</if></where>
+    ORDER BY t.doctor_id,t.day_of_week,t.start_time,t.id LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="template" resultType="map">SELECT * FROM schedule_template WHERE id=#{id}</select>
+  <select id="enabledTemplates" resultType="map">SELECT * FROM schedule_template WHERE enabled=TRUE ORDER BY doctor_id,id</select>
+  <select id="conflictingTemplates" resultType="int">
+    SELECT COUNT(*) FROM schedule_template WHERE doctor_id=#{doctor_id} AND day_of_week=#{day_of_week} AND enabled=TRUE
+    AND effective_from &lt;= #{effective_to} AND effective_to &gt;= #{effective_from}
+    AND (period=#{period} OR (start_time &lt; #{end_time} AND end_time &gt; #{start_time}))
+    <if test="id != null"> AND id &lt;&gt; #{id}</if>
+  </select>
+  <insert id="insertTemplate" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO schedule_template(doctor_id,day_of_week,period,start_time,end_time,total,fee,effective_from,effective_to,enabled,created_at,updated_at)
+    VALUES(#{doctor_id},#{day_of_week},#{period},#{start_time},#{end_time},#{total},#{fee},#{effective_from},#{effective_to},#{enabled},#{now},#{now})
+  </insert>
+  <update id="updateTemplate">
+    UPDATE schedule_template SET doctor_id=#{doctor_id},day_of_week=#{day_of_week},period=#{period},start_time=#{start_time},end_time=#{end_time},
+      total=#{total},fee=#{fee},effective_from=#{effective_from},effective_to=#{effective_to},enabled=#{enabled},updated_at=#{now} WHERE id=#{id}
+  </update>
+  <select id="scheduleExists" resultType="int">SELECT COUNT(*) FROM schedule WHERE doctor_id=#{doctor_id} AND work_date=#{work_date} AND period=#{period}</select>
+  <select id="scheduleOverlap" resultType="int">
+    SELECT COUNT(*) FROM schedule WHERE doctor_id=#{doctor_id} AND start_time &lt; #{end_time} AND end_time &gt; #{start_time}
+  </select>
+  <insert id="insertGeneratedSchedule">
+    INSERT INTO schedule(doctor_id,work_date,period,start_time,end_time,total,remaining,fee,status,source)
+    VALUES(#{doctor_id},#{work_date},#{period},#{start_time},#{end_time},#{total},#{total},#{fee},'OPEN','TEMPLATE')
+  </insert>
+  <insert id="insertJob" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO job_execution_log(trigger_type,status,started_at) VALUES(#{trigger_type},'RUNNING',#{started_at})
+  </insert>
+  <update id="finishJob">
+    UPDATE job_execution_log SET status=#{status},generated_count=#{generated_count},skipped_count=#{skipped_count},
+      error_message=#{error_message},finished_at=#{finished_at} WHERE id=#{id}
+  </update>
+  <select id="job" resultType="map">SELECT * FROM job_execution_log WHERE id=#{id}</select>
+  <select id="jobs" resultType="map">SELECT * FROM job_execution_log ORDER BY id DESC LIMIT #{size} OFFSET #{offset}</select>
+</mapper>

@@ -1,0 +1,10 @@
+<script setup>
+import { onMounted, ref } from 'vue'
+import { get, post, perform } from '../api'
+const status=ref({}),requests=ref([]),jobs=ref([]),loading=ref(false)
+async function load(){loading.value=true;try{status.value=await get('/advanced/status');requests.value=await get('/admin/queue',{size:100});jobs.value=await get('/admin/jobs',{size:50})}finally{loading.value=false}}
+async function generate(){await perform(()=>post('/admin/jobs/generate'),load,'排班生成任务已执行')}
+async function retry(row){await perform(()=>post(`/admin/queue/${row.id}/retry`),load,'已重新加入处理队列')}
+onMounted(load)
+</script>
+<template><div><div class="page-heading"><div><div class="eyebrow">ADVANCED</div><h1>队列与排班任务</h1><p>挂号请求队列与候诊队列分开；入队成功不代表挂号成功。</p></div><div class="action-row"><el-button @click="load">刷新</el-button><el-button type="primary" @click="generate">手动补齐未来排班</el-button></div></div><section class="stats-grid"><div class="stat-card"><div class="stat-label">Redis 挂号队列</div><div class="stat-value">{{ status.queue_enabled?'已启用':'已关闭' }}</div><div class="stat-note">受理后异步处理</div></div><div class="stat-card"><div class="stat-label">Quartz 排班</div><div class="stat-value">{{ status.quartz_enabled?'已启用':'已关闭' }}</div><div class="stat-note">按模板补齐 D～D+6</div></div></section><section class="panel"><h2>挂号请求</h2><el-table :data="requests" v-loading="loading"><el-table-column prop="id" label="请求号"/><el-table-column prop="patient_name" label="患者"/><el-table-column prop="status" label="状态"/><el-table-column prop="error_message" label="说明"/><el-table-column label="操作"><template #default="s"><el-button v-if="['FAILED','EXPIRED'].includes(s.row.status)" size="small" @click="retry(s.row)">重试</el-button></template></el-table-column></el-table></section><section class="panel"><h2>任务执行记录</h2><el-table :data="jobs"><el-table-column prop="id" label="任务号"/><el-table-column prop="trigger_type" label="触发方式"/><el-table-column prop="status" label="状态"/><el-table-column prop="generated_count" label="生成数"/><el-table-column prop="started_at" label="开始时间"/></el-table></section></div></template>

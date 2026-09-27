@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.hospital.business.BusinessMapper">
+  <sql id="page">LIMIT #{size} OFFSET #{offset}</sql>
+  <select id="departments" resultType="map">SELECT * FROM department WHERE enabled=TRUE ORDER BY id <include refid="page"/></select>
+  <select id="doctors" resultType="map">
+    SELECT d.*,u.display_name AS doctor_name,dp.name AS department_name FROM doctor d JOIN app_user u ON u.id=d.user_id JOIN department dp ON dp.id=d.department_id
+    <where>d.enabled=TRUE AND u.enabled=TRUE AND dp.enabled=TRUE
+      <if test="departmentId != null and departmentId != ''"> AND d.department_id=#{departmentId}</if>
+      <if test="keyword != null and keyword != ''"> AND (u.display_name LIKE CONCAT('%',#{keyword},'%') OR d.specialty LIKE CONCAT('%',#{keyword},'%'))</if>
+      <if test="title != null and title != ''"> AND d.title=#{title}</if>
+    </where> ORDER BY d.id <include refid="page"/>
+  </select>
+  <select id="schedules" resultType="map">
+    SELECT s.*,u.display_name AS doctor_name,d.title,d.specialty,dp.id AS department_id,dp.name AS department_name,dp.location
+    FROM schedule s JOIN doctor d ON d.id=s.doctor_id JOIN app_user u ON u.id=d.user_id JOIN department dp ON dp.id=d.department_id
+    <where>s.status='OPEN' AND d.enabled=TRUE AND u.enabled=TRUE AND dp.enabled=TRUE
+      <if test="departmentId != null and departmentId != ''"> AND d.department_id=#{departmentId}</if>
+      <if test="doctorId != null and doctorId != ''"> AND s.doctor_id=#{doctorId}</if>
+      <if test="from != null and from != ''"> AND s.work_date &gt;=#{from}</if>
+      <if test="to != null and to != ''"> AND s.work_date &lt;=#{to}</if>
+      <if test="period != null and period != ''"> AND s.period=#{period}</if>
+      <if test="title != null and title != ''"> AND d.title=#{title}</if>
+      <if test="available == 'true'"> AND s.remaining&gt;0 AND s.start_time&gt;#{now} AND s.work_date&lt;=#{windowEnd}</if>
+    </where> ORDER BY s.work_date,s.start_time,s.id <include refid="page"/>
+  </select>
+  <select id="drugs" resultType="map">SELECT id,code,name,spec,unit,price,stock,reserved,stock-reserved AS available_stock FROM drug
+    <where>enabled=TRUE <if test="keyword != null and keyword != ''"> AND (name LIKE CONCAT('%',#{keyword},'%') OR code LIKE CONCAT('%',#{keyword},'%'))</if></where> ORDER BY id <include refid="page"/>
+  </select>
+  <select id="registrations" resultType="map">
+    SELECT r.*,s.doctor_id,s.work_date,s.period,s.start_time,s.end_time,s.fee,s.status AS schedule_status,s.reason AS stop_reason,
+      du.display_name AS doctor_name,dp.name AS department_name,pu.display_name AS patient_name,b.id AS bill_id,b.status AS bill_status,
+      v.id AS visit_id,v.status AS visit_status,v.queue_no
+    FROM registration r JOIN schedule s ON s.id=r.schedule_id JOIN doctor d ON d.id=s.doctor_id JOIN department dp ON dp.id=d.department_id
+    JOIN app_user du ON du.id=d.user_id JOIN app_user pu ON pu.id=r.patient_id LEFT JOIN bill b ON b.registration_id=r.id AND b.type='REGISTRATION' LEFT JOIN visit v ON v.registration_id=r.id
+    <where>
+      <if test="patientId != null and patientId != ''"> AND r.patient_id=#{patientId}</if>
+      <if test="doctorId != null and doctorId != ''"> AND s.doctor_id=#{doctorId}</if>
+      <if test="status != null and status != ''"> AND r.status=#{status}</if>
+      <if test="id != null"> AND r.id=#{id}</if>
+    </where> ORDER BY r.id DESC <include refid="page"/>
+  </select>
+  <select id="bills" resultType="map">
+    SELECT b.*,u.display_name AS patient_name,s.work_date,s.period,du.display_name AS doctor_name FROM bill b JOIN app_user u ON u.id=b.patient_id
+    JOIN registration r ON r.id=b.registration_id JOIN schedule s ON s.id=r.schedule_id JOIN doctor d ON d.id=s.doctor_id JOIN app_user du ON du.id=d.user_id
+    <where>
+      <if test="patientId != null and patientId != ''"> AND b.patient_id=#{patientId}</if>
+      <if test="id != null"> AND b.id=#{id}</if>
+      <if test="status != null and status != ''"> AND b.status=#{status}</if>
+      <if test="type != null and type != ''"> AND b.type=#{type}</if>
+      <if test="from != null and from != ''"> AND b.created_at &gt;= #{from}</if>
+      <if test="to != null and to != ''"> AND b.created_at &lt; DATE_ADD(#{to},INTERVAL 1 DAY)</if>
+    </where> ORDER BY b.id DESC <include refid="page"/>
+  </select>
+  <select id="visits" resultType="map">
+    SELECT v.*,u.display_name AS patient_name,du.display_name AS doctor_name,dp.name AS department_name,s.work_date,s.period,s.start_time,s.end_time,s.status AS schedule_status,
+    (SELECT COUNT(*) FROM visit prev WHERE prev.schedule_id=v.schedule_id AND prev.status IN ('WAITING','CALLED','IN_PROGRESS') AND prev.sort_no&lt;v.sort_no) AS ahead_count
+    FROM visit v JOIN app_user u ON u.id=v.patient_id JOIN doctor d ON d.id=v.doctor_id JOIN app_user du ON du.id=d.user_id JOIN department dp ON dp.id=d.department_id JOIN schedule s ON s.id=v.schedule_id
+    <where>
+      <if test="patientId != null and patientId != ''"> AND v.patient_id=#{patientId}</if>
+      <if test="doctorId != null and doctorId != ''"> AND v.doctor_id=#{doctorId}</if>
+      <if test="scheduleId != null and scheduleId != ''"> AND v.schedule_id=#{scheduleId}</if>
+      <if test="status != null and status != ''"> AND v.status=#{status}</if>
+      <if test="from != null and from != ''"> AND s.work_date&gt;=#{from}</if>
+      <if test="to != null and to != ''"> AND s.work_date&lt;=#{to}</if>
+    </where> ORDER BY s.work_date DESC,s.start_time,v.sort_no <include refid="page"/>
+  </select>
+  <select id="records" resultType="map">
+    SELECT mr.id,mr.visit_id,mr.patient_id,mr.doctor_id,mr.status,mr.diagnosis,mr.submitted_at,s.work_date,s.period,du.display_name AS doctor_name,pu.display_name AS patient_name,dp.name AS department_name
+    FROM medical_record mr JOIN visit v ON v.id=mr.visit_id JOIN schedule s ON s.id=v.schedule_id JOIN doctor d ON d.id=mr.doctor_id JOIN department dp ON dp.id=d.department_id JOIN app_user du ON du.id=d.user_id JOIN app_user pu ON pu.id=mr.patient_id
+    <where>
+      <choose><when test="patientOnly == true">mr.status='SUBMITTED'</when><otherwise>1=1</otherwise></choose>
+      <if test="patientId != null and patientId != ''"> AND mr.patient_id=#{patientId}</if>
+      <if test="doctorId != null and doctorId != ''"> AND mr.doctor_id=#{doctorId}</if>
+      <if test="departmentId != null and departmentId != ''"> AND d.department_id=#{departmentId}</if>
+      <if test="from != null and from != ''"> AND s.work_date&gt;=#{from}</if>
+      <if test="to != null and to != ''"> AND s.work_date&lt;=#{to}</if>
+      <if test="status != null and status != ''"> AND mr.status=#{status}</if>
+    </where> ORDER BY mr.id DESC <include refid="page"/>
+  </select>
+  <select id="prescriptions" resultType="map">
+    SELECT p.*,pu.display_name AS patient_name,du.display_name AS doctor_name,b.id AS bill_id,b.status AS bill_status,b.deadline,b.refund_requested
+    FROM prescription p JOIN app_user pu ON pu.id=p.patient_id JOIN doctor d ON d.id=p.doctor_id JOIN app_user du ON du.id=d.user_id
+    LEFT JOIN bill b ON b.id=(SELECT MAX(b2.id) FROM bill b2 WHERE b2.prescription_id=p.id)
+    <where>
+      <if test="patientId != null and patientId != ''"> AND p.patient_id=#{patientId}</if>
+      <if test="doctorId != null and doctorId != ''"> AND p.doctor_id=#{doctorId}</if>
+      <if test="id != null"> AND p.id=#{id}</if>
+      <if test="visitId != null"> AND p.visit_id=#{visitId}</if>
+      <if test="status != null and status != ''"> AND p.status=#{status}</if>
+      <if test="pharmacyOnly == true"> AND p.status IN ('PAID','DISPENSED')</if>
+    </where> ORDER BY p.id DESC <include refid="page"/>
+  </select>
+  <select id="payments" resultType="map">SELECT p.*,b.type,u.display_name AS patient_name FROM payment_record p JOIN bill b ON b.id=p.bill_id JOIN app_user u ON u.id=p.patient_id
+    <where><if test="patientId != null and patientId != ''"> AND p.patient_id=#{patientId}</if><if test="billId != null"> AND p.bill_id=#{billId}</if></where> ORDER BY p.id DESC <include refid="page"/>
+  </select>
+  <select id="refunds" resultType="map">SELECT p.*,b.type,u.display_name AS patient_name FROM refund_record p JOIN bill b ON b.id=p.bill_id JOIN app_user u ON u.id=p.patient_id
+    <where><if test="patientId != null and patientId != ''"> AND p.patient_id=#{patientId}</if><if test="billId != null"> AND p.bill_id=#{billId}</if></where> ORDER BY p.id DESC <include refid="page"/>
+  </select>
+</mapper>
