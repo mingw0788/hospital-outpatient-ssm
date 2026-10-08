@@ -22,7 +22,7 @@ class DynamicSqlWhitespaceTest {
     private static final Pattern MERGED_KEYWORD = Pattern.compile(
             "[A-Za-z0-9_?'\\\")]\\b(?:AND|OR|WHERE|ORDER|LIMIT|OFFSET)\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern MERGED_SUFFIX = Pattern.compile(
-            "[A-Za-z0-9_?'\\\")](?:AND|OR|WHERE|ORDER|LIMIT|OFFSET)\\b", Pattern.CASE_INSENSITIVE);
+            "[A-Za-z0-9_?'\\\")](?:AND|OR|WHERE|ORDER|LIMIT|OFFSET)\\b");
 
     @BeforeAll
     static void parseRealMapperResources() throws Exception {

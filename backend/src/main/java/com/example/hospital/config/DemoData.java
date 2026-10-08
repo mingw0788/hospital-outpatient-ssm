@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,28 +50,27 @@ public class DemoData implements ApplicationRunner {
         addDrug("DEMO004","演示药品 D","10片/板","盒","8.60");
         addDrug("DEMO005","演示药品 E","12粒/盒","盒","16.00");
         addDrug("DEMO006","演示药品 F","20毫升/瓶","瓶","21.50");
-        var today=LocalDate.now(clock);var now=LocalDateTime.now(clock);
-        for(long doctor:new long[]{d3,d4})for(int day=0;day<7;day++){
-            LocalDate date=today.plusDays(day);
-            for(String period:List.of("AM","PM")){
-                LocalDateTime start=date.atTime(period.equals("AM")?8:14,0);
-                if(start.isAfter(now))ensureSchedule(doctor,date,period,start,date.atTime(period.equals("AM")?12:17,0),"20.00");
-            }
-        }
-        // 补齐既有演示医生本周遗漏的空排班；跳过已存在的时段，不改号源或挂号状态。
-        for(String username:List.of("doctor","doctor2")){
+        refreshRollingSchedules();
+        addDemoAppointments();
+        addDemoClinicalHistory();
+    }
+    /** Keep demo appointment dates current at startup and after each Shanghai midnight. */
+    @Scheduled(cron="${app.demo-schedule.cron:0 5 0 * * *}",zone="Asia/Shanghai")
+    @Transactional
+    public void refreshRollingSchedules(){
+        if(!isProjectDemoDatabase())return;
+        LocalDate today=LocalDate.now(clock);LocalDateTime now=LocalDateTime.now(clock);
+        for(String username:List.of("doctor","doctor2","doctor3","doctor4")){
             Map<String,Object> user=users.byUsername(username);if(user==null||user.get("doctor_id")==null)continue;
             long doctor=((Number)user.get("doctor_id")).longValue();
-            for(int day=0;day<7;day++){
-                LocalDate date=today.plusDays(day);
+            for(int offset=0;offset<7;offset++){
+                LocalDate date=today.plusDays(offset);
                 for(String period:List.of("AM","PM")){
                     LocalDateTime start=date.atTime(period.equals("AM")?8:14,0);
                     if(start.isAfter(now))ensureSchedule(doctor,date,period,start,date.atTime(period.equals("AM")?12:17,0),"20.00");
                 }
             }
         }
-        addDemoAppointments();
-        addDemoClinicalHistory();
     }
     private void addDemoAppointments(){
         long patients=jdbc.queryForObject("SELECT COUNT(*) FROM app_user WHERE username IN ('patient3','patient4','patient5') AND role='PATIENT'",Long.class);
@@ -148,7 +148,7 @@ public class DemoData implements ApplicationRunner {
         var row=new HashMap<String,Object>();row.put("code",code);row.put("name",name);row.put("spec",spec);row.put("unit",unit);row.put("price",new java.math.BigDecimal(price));row.put("threshold",10);row.put("enabled",true);admin.addDrug(row);jdbc.update("UPDATE drug SET stock=200 WHERE id=?",row.get("id"));jdbc.update("INSERT INTO stock_movement(drug_id,type,quantity,reason) VALUES(?,'INITIAL',200,'演示库存初始化')",row.get("id"));
     }
     private void ensureSchedule(long doctor,LocalDate date,String period,LocalDateTime start,LocalDateTime end,String fee){
-        if(jdbc.queryForObject("SELECT COUNT(*) FROM schedule WHERE doctor_id=? AND work_date=? AND period=?",Integer.class,doctor,date,period)>0)return;
+        if(jdbc.queryForObject("SELECT COUNT(*) FROM schedule WHERE doctor_id=? AND work_date=? AND (period=? OR (start_time<? AND end_time>?))",Integer.class,doctor,date,period,end,start)>0)return;
         addSchedule(doctor,date,period,start,end,fee);
     }
     private void addSchedule(long doctor,LocalDate date,String period,LocalDateTime start,LocalDateTime end,String fee){var m=new HashMap<String,Object>();m.put("doctor_id",doctor);m.put("work_date",date);m.put("period",period);m.put("start_time",start);m.put("end_time",end);m.put("total",30);m.put("fee",new java.math.BigDecimal(fee));m.put("status","OPEN");admin.addSchedule(m);}
