@@ -4,6 +4,8 @@
 
 **在 IntelliJ IDEA 中自己运行，请先阅读 [IDEA 本机运行指南](docs/IDEA本机运行指南.md)。** IDEA 社区版也可以运行后端，前端在 IDEA 终端启动。
 
+项目需求范围、角色权限、业务规则和验收标准见 [需求分析](docs/需求分析.md)。
+
 ## 快速启动
 
 1. 准备 JDK 17 或 21、Maven 3.9、Node.js 22.12+、MySQL 8.0.16+，并启动 MySQL 服务。
@@ -40,7 +42,7 @@ hospital-outpatient/
 ├─ frontend/                Vue 3 + Vite 前端
 ├─ sql/                     Navicat 可手动执行的数据库脚本
 ├─ scripts/                 本机启动脚本
-├─ docs/                    IDEA 运行及排错指南
+├─ docs/                    需求分析、IDEA 运行及排错指南
 └─ .env.example             环境变量参考，不会被 Spring Boot 自动读取
 ```
 
